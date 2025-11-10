@@ -106,7 +106,7 @@ impl RustCodeGenerator {
                     self.indent_level -= 1;
                     
                     write!(self.output, "\n{}break;", self.indent())?;
-                    write!(self.output, "\n{}}", self.indent())?;
+                    write!(self.output, "\n{}}}", self.indent())?;
                 }
 
                 // Generate default statements if present
@@ -115,11 +115,26 @@ impl RustCodeGenerator {
                     self.indent_level += 1;
                     self.generate_expression(default_expr)?;
                     self.indent_level -= 1;
-                    write!(self.output, "\n{}}", self.indent())?;
+                    write!(self.output, "\n{}}}", self.indent())?;
                 }
 
                 self.indent_level -= 1;
                 write!(self.output, "\n{}}}", self.indent())?;
+            }
+            Expression::Some(value) => {
+                let val = self.generate_expression_as_value(value)?;
+                write!(self.output, "{}println!(\"{{:?}}\", Some({}));", self.indent(), val)?;
+            }
+            Expression::None => {
+                write!(self.output, "{}println!(\"{{:?}}\", None::<i32>);", self.indent())?;
+            }
+            Expression::Ok(value) => {
+                let val = self.generate_expression_as_value(value)?;
+                write!(self.output, "{}println!(\"{{:?}}\", Ok::<_, String>({}));", self.indent(), val)?;
+            }
+            Expression::Err(error) => {
+                let err = self.generate_expression_as_value(error)?;
+                write!(self.output, "{}println!(\"{{:?}}\", Err::<i32, _>({}));", self.indent(), err)?;
             }
             _ => {
                 write!(self.output, "{}// Unsupported expression", self.indent())?;
@@ -154,8 +169,23 @@ impl RustCodeGenerator {
                     Operator::Power => "pow",
                     _ => "/* unsupported */",
                 };
-                
+
                 Ok(format!("({} {} {})", left_val, op_str, right_val))
+            }
+            Expression::Some(value) => {
+                let val = self.generate_expression_as_value(value)?;
+                Ok(format!("Some({})", val))
+            }
+            Expression::None => {
+                Ok("None".to_string())
+            }
+            Expression::Ok(value) => {
+                let val = self.generate_expression_as_value(value)?;
+                Ok(format!("Ok({})", val))
+            }
+            Expression::Err(error) => {
+                let err = self.generate_expression_as_value(error)?;
+                Ok(format!("Err({})", err))
             }
             _ => Ok("/* complex expression */".to_string()),
         }

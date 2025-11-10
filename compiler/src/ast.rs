@@ -19,6 +19,8 @@ pub enum Type {
     Map(Box<Type>, Box<Type>) = 5,
     Function(Vec<Type>, Box<Type>) = 6,
     LogLevel = 7,
+    Option(Box<Type>) = 8,
+    Result(Box<Type>, Box<Type>) = 9,
 }
 
 #[allow(dead_code)]
@@ -57,16 +59,24 @@ pub enum Expression {
         message: Box<Expression>,
     },
     /// Conditional expression similar to LISP's `cond`
-    /// 
+    ///
     /// Structure: `Cond[[condition1 statements1] [condition2 statements2] ... [default_statements]]`
-    /// 
+    ///
     /// # Variants
     /// - `conditions`: A list of condition-statement pairs
     /// - `default_statements`: Optional statements to execute if no conditions match
     Cond {
         conditions: Vec<(Expression, Expression)>,
         default_statements: Option<Box<Expression>>,
-    }
+    },
+    /// Option::Some variant - wraps a value
+    Some(Box<Expression>),
+    /// Option::None variant - represents absence of value
+    None,
+    /// Result::Ok variant - wraps a success value
+    Ok(Box<Expression>),
+    /// Result::Err variant - wraps an error value
+    Err(Box<Expression>),
 }
 
 #[derive(Debug)]

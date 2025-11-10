@@ -274,4 +274,115 @@ mod tests {
             _ => panic!("Expected Cond expression"),
         }
     }
+
+    // Tests for Option type parsing
+    #[test]
+    fn test_some_parsing() {
+        let mut parser = Parser::new("Some[42]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        eprintln!("Parsed expression: {:?}", expr);
+
+        match expr {
+            Expression::Some(value) => {
+                match *value {
+                    Expression::Number(num) => assert_eq!(num, 42),
+                    _ => panic!("Expected number value"),
+                }
+            }
+            _ => panic!("Expected Some expression, got: {:?}", expr),
+        }
+    }
+
+    #[test]
+    fn test_none_parsing() {
+        let mut parser = Parser::new("None".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::None => {},
+            _ => panic!("Expected None expression"),
+        }
+    }
+
+    #[test]
+    fn test_some_with_string() {
+        let mut parser = Parser::new("Some[\"hello\"]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::Some(value) => {
+                match *value {
+                    Expression::String(s) => assert_eq!(s, "hello"),
+                    _ => panic!("Expected string value"),
+                }
+            }
+            _ => panic!("Expected Some expression"),
+        }
+    }
+
+    // Tests for Result type parsing
+    #[test]
+    fn test_ok_parsing() {
+        let mut parser = Parser::new("Ok[100]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::Ok(value) => {
+                match *value {
+                    Expression::Number(num) => assert_eq!(num, 100),
+                    _ => panic!("Expected number value"),
+                }
+            }
+            _ => panic!("Expected Ok expression"),
+        }
+    }
+
+    #[test]
+    fn test_err_parsing() {
+        let mut parser = Parser::new("Err[\"error message\"]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::Err(error) => {
+                match *error {
+                    Expression::String(s) => assert_eq!(s, "error message"),
+                    _ => panic!("Expected string error"),
+                }
+            }
+            _ => panic!("Expected Err expression"),
+        }
+    }
+
+    #[test]
+    fn test_ok_with_string() {
+        let mut parser = Parser::new("Ok[\"success\"]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::Ok(value) => {
+                match *value {
+                    Expression::String(s) => assert_eq!(s, "success"),
+                    _ => panic!("Expected string value"),
+                }
+            }
+            _ => panic!("Expected Ok expression"),
+        }
+    }
+
+    #[test]
+    fn test_err_with_number() {
+        let mut parser = Parser::new("Err[404]".to_string());
+        let expr = parser.parse_expression().unwrap();
+
+        match expr {
+            Expression::Err(error) => {
+                match *error {
+                    Expression::Number(num) => assert_eq!(num, 404),
+                    _ => panic!("Expected number error"),
+                }
+            }
+            _ => panic!("Expected Err expression"),
+        }
+    }
 }

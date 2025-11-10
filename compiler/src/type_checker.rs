@@ -46,6 +46,46 @@ impl TypeChecker {
                 self.check(message)?;
                 Ok(Type::Int) // Placeholder, could be a specific "Void" type
             }
+            Expression::Cond { conditions, default_statements } => {
+                // Type check all conditions (should be boolean)
+                for (condition, _) in conditions {
+                    let cond_type = self.check(condition)?;
+                    if cond_type != Type::Bool {
+                        return Err(TypeError::TypeMismatch {
+                            expected: Type::Bool,
+                            found: cond_type,
+                        });
+                    }
+                }
+
+                // Infer return type from first branch or default
+                if let Some((_, first_branch)) = conditions.first() {
+                    self.check(first_branch)
+                } else if let Some(default) = default_statements {
+                    self.check(default)
+                } else {
+                    Ok(Type::Int) // Default type if no branches
+                }
+            }
+            Expression::Some(value) => {
+                let inner_type = self.check(value)?;
+                Ok(Type::Option(Box::new(inner_type)))
+            }
+            Expression::None => {
+                // None has an unspecified inner type
+                // Default to Option[int] for simplicity
+                Ok(Type::Option(Box::new(Type::Int)))
+            }
+            Expression::Ok(value) => {
+                let ok_type = self.check(value)?;
+                // Default error type is String
+                Ok(Type::Result(Box::new(ok_type), Box::new(Type::String)))
+            }
+            Expression::Err(error) => {
+                let err_type = self.check(error)?;
+                // Default ok type is Int
+                Ok(Type::Result(Box::new(Type::Int), Box::new(err_type)))
+            }
         }
     }
 

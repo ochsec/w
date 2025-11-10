@@ -81,6 +81,13 @@ impl Parser {
 
     fn parse_function_definition(&mut self) -> Option<Expression> {
         // Check for function definition syntax: f[x, y] := body
+        // Skip special keywords that have their own parsing logic
+        if let Some(Token::Identifier(id)) = &self.current_token {
+            if id == "Cond" || id == "Some" || id == "None" || id == "Ok" || id == "Err" {
+                return None;
+            }
+        }
+
         let name = match &self.current_token {
             Some(Token::Identifier(id)) => id.clone(),
             _ => return None,
@@ -155,9 +162,16 @@ impl Parser {
 
     fn parse_function_call(&mut self) -> Option<Expression> {
         // Function call syntax: Function[arg1, arg2, ...]
+        // Skip special keywords that have their own parsing logic
+        if let Some(Token::Identifier(id)) = &self.current_token {
+            if id == "Cond" || id == "Some" || id == "None" || id == "Ok" || id == "Err" {
+                return None;
+            }
+        }
+
         let function = match &self.current_token {
-            Some(Token::Identifier(_)) | Some(Token::LeftBracket) => 
-                Box::new(self.parse_expression()?),
+            Some(Token::Identifier(_)) | Some(Token::LeftBracket) =>
+                Box::new(self.parse_primary()?),
             _ => return None,
         };
 
@@ -253,6 +267,22 @@ impl Parser {
                 self.advance();
                 self.parse_cond_expression()
             }
+            Some(Token::Identifier(id)) if id == "Some" => {
+                self.advance();
+                self.parse_some_expression()
+            }
+            Some(Token::Identifier(id)) if id == "None" => {
+                self.advance();
+                Some(Expression::None)
+            }
+            Some(Token::Identifier(id)) if id == "Ok" => {
+                self.advance();
+                self.parse_ok_expression()
+            }
+            Some(Token::Identifier(id)) if id == "Err" => {
+                self.advance();
+                self.parse_err_expression()
+            }
             Some(Token::Identifier(id)) => {
                 let expr = Expression::Identifier(id.clone());
                 self.advance();
@@ -336,6 +366,87 @@ impl Parser {
             conditions,
             default_statements,
         })
+    }
+
+    /// Parses a Some expression with the structure: Some[value]
+    ///
+    /// # Returns
+    /// - `Some(Expression::Some)` if parsing succeeds
+    /// - `None` if parsing fails
+    fn parse_some_expression(&mut self) -> Option<Expression> {
+        // Expect left bracket
+        match self.current_token {
+            Some(Token::LeftBracket) => self.advance(),
+            _ => return None,
+        }
+
+        // Parse value
+        let value = match self.parse_expression() {
+            Some(expr) => Box::new(expr),
+            None => return None,
+        };
+
+        // Expect right bracket
+        match self.current_token {
+            Some(Token::RightBracket) => self.advance(),
+            _ => return None,
+        }
+
+        Some(Expression::Some(value))
+    }
+
+    /// Parses an Ok expression with the structure: Ok[value]
+    ///
+    /// # Returns
+    /// - `Some(Expression::Ok)` if parsing succeeds
+    /// - `None` if parsing fails
+    fn parse_ok_expression(&mut self) -> Option<Expression> {
+        // Expect left bracket
+        match self.current_token {
+            Some(Token::LeftBracket) => self.advance(),
+            _ => return None,
+        }
+
+        // Parse value
+        let value = match self.parse_expression() {
+            Some(expr) => Box::new(expr),
+            None => return None,
+        };
+
+        // Expect right bracket
+        match self.current_token {
+            Some(Token::RightBracket) => self.advance(),
+            _ => return None,
+        }
+
+        Some(Expression::Ok(value))
+    }
+
+    /// Parses an Err expression with the structure: Err[error]
+    ///
+    /// # Returns
+    /// - `Some(Expression::Err)` if parsing succeeds
+    /// - `None` if parsing fails
+    fn parse_err_expression(&mut self) -> Option<Expression> {
+        // Expect left bracket
+        match self.current_token {
+            Some(Token::LeftBracket) => self.advance(),
+            _ => return None,
+        }
+
+        // Parse error value
+        let error = match self.parse_expression() {
+            Some(expr) => Box::new(expr),
+            None => return None,
+        };
+
+        // Expect right bracket
+        match self.current_token {
+            Some(Token::RightBracket) => self.advance(),
+            _ => return None,
+        }
+
+        Some(Expression::Err(error))
     }
 
     fn parse_log_call(&mut self, level: LogLevel) -> Option<Expression> {
@@ -441,15 +552,68 @@ impl Parser {
     fn parse_type(&mut self) -> Option<Type> {
         match &self.current_token {
             Some(Token::Identifier(id)) => {
-                let type_ = match id.as_str() {
-                    "int" => Type::Int,
-                    "float" => Type::Float,
-                    "string" => Type::String,
-                    "bool" => Type::Bool,
-                    _ => return None,
-                };
+                let base_type = id.clone();
                 self.advance();
-                Some(type_)
+
+                // Check for generic type syntax: Type[...]
+                if matches!(self.current_token, Some(Token::LeftBracket)) {
+                    self.advance(); // consume [
+
+                    match base_type.as_str() {
+                        "List" => {
+                            let inner = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::RightBracket)) {
+                                return None;
+                            }
+                            self.advance();
+                            Some(Type::List(Box::new(inner)))
+                        }
+                        "Map" => {
+                            let key_type = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::Comma)) {
+                                return None;
+                            }
+                            self.advance();
+                            let value_type = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::RightBracket)) {
+                                return None;
+                            }
+                            self.advance();
+                            Some(Type::Map(Box::new(key_type), Box::new(value_type)))
+                        }
+                        "Option" => {
+                            let inner = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::RightBracket)) {
+                                return None;
+                            }
+                            self.advance();
+                            Some(Type::Option(Box::new(inner)))
+                        }
+                        "Result" => {
+                            let ok_type = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::Comma)) {
+                                return None;
+                            }
+                            self.advance();
+                            let err_type = self.parse_type()?;
+                            if !matches!(self.current_token, Some(Token::RightBracket)) {
+                                return None;
+                            }
+                            self.advance();
+                            Some(Type::Result(Box::new(ok_type), Box::new(err_type)))
+                        }
+                        _ => None,
+                    }
+                } else {
+                    // Simple types without generics
+                    match base_type.as_str() {
+                        "int" => Some(Type::Int),
+                        "float" => Some(Type::Float),
+                        "string" => Some(Type::String),
+                        "bool" => Some(Type::Bool),
+                        _ => None,
+                    }
+                }
             }
             _ => None,
         }
